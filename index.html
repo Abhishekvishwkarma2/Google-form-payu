@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+  <base target="_top">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+
+  <title>Appointment Form</title>
+
+  <style>
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+
+      margin: 0;
+
+      padding: 30px 15px;
+
+      font-family: Arial, sans-serif;
+
+      background: #f5f7f8;
+
+    }
+
+    .container {
+
+      max-width: 650px;
+
+      margin: 0 auto;
+
+      background: #ffffff;
+
+      padding: 35px;
+
+      border-radius: 12px;
+
+      box-shadow:
+        0 5px 25px
+        rgba(0,0,0,.08);
+
+    }
+
+    h1 {
+
+      text-align: center;
+
+      margin-top: 0;
+
+      color: #209094;
+
+      font-size: 28px;
+
+    }
+
+    .subtitle {
+
+      text-align: center;
+
+      color: #666;
+
+      margin-bottom: 30px;
+
+    }
+
+    .form-group {
+
+      margin-bottom: 20px;
+
+    }
+
+    label {
+
+      display: block;
+
+      margin-bottom: 8px;
+
+      font-weight: 600;
+
+      color: #333;
+
+    }
+
+    .required {
+
+      color: red;
+
+    }
+
+    input {
+
+      width: 100%;
+
+      padding: 13px;
+
+      border: 1px solid #ccc;
+
+      border-radius: 6px;
+
+      font-size: 15px;
+
+      outline: none;
+
+    }
+
+    input:focus {
+
+      border-color: #209094;
+
+      box-shadow:
+        0 0 0 2px
+        rgba(32,144,148,.10);
+
+    }
+
+    button {
+
+      width: 100%;
+
+      padding: 14px;
+
+      border: none;
+
+      border-radius: 6px;
+
+      background: #209094;
+
+      color: white;
+
+      font-size: 17px;
+
+      font-weight: bold;
+
+      cursor: pointer;
+
+    }
+
+    button:hover {
+
+      opacity: .92;
+
+    }
+
+    button:disabled {
+
+      opacity: .6;
+
+      cursor: not-allowed;
+
+    }
+
+    #message {
+
+      text-align: center;
+
+      margin-top: 15px;
+
+      color: #555;
+
+      min-height: 20px;
+
+    }
+
+    .secure {
+
+      text-align: center;
+
+      margin-top: 20px;
+
+      color: #777;
+
+      font-size: 13px;
+
+    }
+
+    @media(max-width:600px) {
+
+      body {
+
+        padding: 20px 10px;
+
+      }
+
+      .container {
+
+        padding: 25px 20px;
+
+      }
+
+      h1 {
+
+        font-size: 24px;
+
+      }
+
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+  <h1>
+    Appointment Form
+  </h1>
+
+
+  <div class="subtitle">
+    Enter your appointment details
+  </div>
+
+
+  <form id="appointmentForm">
+
+
+    <!-- 1. PATIENT NAME -->
+
+    <div class="form-group">
+
+      <label for="patientName">
+
+        Patient Name
+
+        <span class="required">*</span>
+
+      </label>
+
+      <input
+        type="text"
+        id="patientName"
+        placeholder="Enter patient name"
+        autocomplete="name"
+        required>
+
+    </div>
+
+
+    <!-- 2. EMAIL -->
+
+    <div class="form-group">
+
+      <label for="email">
+
+        Email
+
+        <span class="required">*</span>
+
+      </label>
+
+      <input
+        type="email"
+        id="email"
+        placeholder="Enter email address"
+        autocomplete="email"
+        required>
+
+    </div>
+
+
+    <!-- 3. CONTACT NUMBER -->
+
+    <div class="form-group">
+
+      <label for="phone">
+
+        Contact Number
+
+        <span class="required">*</span>
+
+      </label>
+
+      <input
+        type="tel"
+        id="phone"
+        maxlength="10"
+        inputmode="numeric"
+        placeholder="Enter 10 digit mobile number"
+        autocomplete="tel"
+        required>
+
+    </div>
+
+
+    <!-- 4. DOCTOR -->
+
+    <div class="form-group">
+
+      <label for="doctor">
+
+        Doctor
+
+        <span class="required">*</span>
+
+      </label>
+
+      <input
+        type="text"
+        id="doctor"
+        placeholder="Enter doctor name"
+        required>
+
+    </div>
+
+
+    <!-- 5. APPOINTMENT DATE -->
+
+    <div class="form-group">
+
+      <label for="appointmentDate">
+
+        Appointment Date
+
+        <span class="required">*</span>
+
+      </label>
+
+      <input
+        type="date"
+        id="appointmentDate"
+        required>
+
+    </div>
+
+
+    <!-- 6. CONSULTATION FEE -->
+
+    <div class="form-group">
+
+      <label for="consultationFee">
+
+        Consultation Fee (₹)
+
+        <span class="required">*</span>
+
+      </label>
+
+      <input
+        type="number"
+        id="consultationFee"
+        min="1"
+        max="1000000"
+        step="0.01"
+        placeholder="Enter consultation fee"
+        required>
+
+    </div>
+
+
+    <!-- SUBMIT -->
+
+    <button
+      type="submit"
+      id="submitButton">
+
+      Submit & Pay
+
+    </button>
+
+
+    <div id="message"></div>
+
+
+    <div class="secure">
+
+      🔒 Secure payment powered by PayU
+
+    </div>
+
+
+  </form>
+
+
+</div>
+
+
+<script>
+
+
+// ======================================================
+// FORM SUBMIT
+// ======================================================
+
+document
+  .getElementById("appointmentForm")
+  .addEventListener(
+    "submit",
+    function(event) {
+
+      event.preventDefault();
+
+
+      const button =
+        document.getElementById(
+          "submitButton"
+        );
+
+
+      const message =
+        document.getElementById(
+          "message"
+        );
+
+
+      // ==================================================
+      // GET FORM DATA
+      // ==================================================
+
+      const data = {
+
+        patientName:
+          document
+            .getElementById(
+              "patientName"
+            )
+            .value
+            .trim(),
+
+        email:
+          document
+            .getElementById(
+              "email"
+            )
+            .value
+            .trim(),
+
+        phone:
+          document
+            .getElementById(
+              "phone"
+            )
+            .value
+            .trim(),
+
+        doctor:
+          document
+            .getElementById(
+              "doctor"
+            )
+            .value
+            .trim(),
+
+        appointmentDate:
+          document
+            .getElementById(
+              "appointmentDate"
+            )
+            .value
+            .trim(),
+
+        consultationFee:
+          document
+            .getElementById(
+              "consultationFee"
+            )
+            .value
+            .trim()
+
+      };
+
+
+      // ==================================================
+      // VALIDATE PATIENT NAME
+      // ==================================================
+
+      if (!data.patientName) {
+
+        alert(
+          "Please enter patient name."
+        );
+
+        return;
+
+      }
+
+
+      // ==================================================
+      // VALIDATE EMAIL
+      // ==================================================
+
+      if (!data.email) {
+
+        alert(
+          "Please enter email address."
+        );
+
+        return;
+
+      }
+
+
+      if (
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          .test(
+            data.email
+          )
+      ) {
+
+        alert(
+          "Please enter a valid email address."
+        );
+
+        return;
+
+      }
+
+
+      // ==================================================
+      // VALIDATE PHONE
+      // ==================================================
+
+      if (
+        !/^[0-9]{10}$/
+          .test(
+            data.phone
+          )
+      ) {
+
+        alert(
+          "Please enter a valid 10 digit contact number."
+        );
+
+        return;
+
+      }
+
+
+      // ==================================================
+      // VALIDATE DOCTOR
+      // ==================================================
+
+      if (!data.doctor) {
+
+        alert(
+          "Please enter doctor name."
+        );
+
+        return;
+
+      }
+
+
+      // ==================================================
+      // VALIDATE DATE
+      // ==================================================
+
+      if (!data.appointmentDate) {
+
+        alert(
+          "Please select appointment date."
+        );
+
+        return;
+
+      }
+
+
+      // ==================================================
+      // VALIDATE FEE
+      // ==================================================
+
+      const amount =
+        parseFloat(
+          data.consultationFee
+        );
+
+
+      if (
+        isNaN(amount) ||
+        amount <= 0
+      ) {
+
+        alert(
+          "Please enter a valid consultation fee."
+        );
+
+        return;
+
+      }
+
+
+      // ==================================================
+      // DISABLE BUTTON
+      // ==================================================
+
+      button.disabled = true;
+
+      button.innerText =
+        "Processing...";
+
+
+      message.innerText =
+        "Creating secure payment...";
+
+
+      // ==================================================
+      // SEND TO APPS SCRIPT
+      // ==================================================
+
+      google.script.run
+
+        .withSuccessHandler(
+          function(result) {
+
+
+            // ============================================
+            // PAYMENT CREATION FAILED
+            // ============================================
+
+            if (
+              !result ||
+              !result.success
+            ) {
+
+              alert(
+
+                result &&
+                result.message
+
+                  ? result.message
+
+                  : "Unable to create payment."
+
+              );
+
+
+              button.disabled =
+                false;
+
+              button.innerText =
+                "Submit & Pay";
+
+              message.innerText =
+                "";
+
+              return;
+
+            }
+
+
+            // ============================================
+            // CREATE PAYU FORM
+            // ============================================
+
+            const payuForm =
+              document.createElement(
+                "form"
+              );
+
+
+            payuForm.method =
+              "POST";
+
+
+            payuForm.action =
+              result.payuUrl;
+
+
+            payuForm.style.display =
+              "none";
+
+
+            // ============================================
+            // ADD PAYU PARAMETERS
+            // ============================================
+
+            Object.keys(
+              result.params
+            ).forEach(
+              function(key) {
+
+
+                const input =
+                  document.createElement(
+                    "input"
+                  );
+
+
+                input.type =
+                  "hidden";
+
+
+                input.name =
+                  key;
+
+
+                input.value =
+                  result.params[key];
+
+
+                payuForm.appendChild(
+                  input
+                );
+
+              }
+            );
+
+
+            // ============================================
+            // SUBMIT TO PAYU
+            // ============================================
+
+            document.body.appendChild(
+              payuForm
+            );
+
+
+            payuForm.submit();
+
+
+          }
+        )
+
+
+        // =================================================
+        // APPS SCRIPT ERROR
+        // =================================================
+
+        .withFailureHandler(
+          function(error) {
+
+
+            alert(
+
+              "Error: " +
+
+              (
+
+                error &&
+                error.message
+
+                  ? error.message
+
+                  : error
+
+              )
+
+            );
+
+
+            button.disabled =
+              false;
+
+
+            button.innerText =
+              "Submit & Pay";
+
+
+            message.innerText =
+              "";
+
+
+          }
+        )
+
+
+        .createPayment(data);
+
+
+    }
+  );
+
+
+// ======================================================
+// ONLY DIGITS FOR MOBILE
+// ======================================================
+
+document
+  .getElementById("phone")
+  .addEventListener(
+    "input",
+    function() {
+
+      this.value =
+        this.value
+          .replace(
+            /\D/g,
+            ""
+          )
+          .substring(
+            0,
+            10
+          );
+
+    }
+  );
+
+
+// ======================================================
+// PREVENT PAST DATE
+// ======================================================
+
+const today =
+  new Date()
+    .toISOString()
+    .split("T")[0];
+
+
+document
+  .getElementById(
+    "appointmentDate"
+  )
+  .setAttribute(
+    "min",
+    today
+  );
+
+
+</script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #fff; }
+    .certificate {
+      width: 210mm; height: 297mm; padding: 16mm;
+      border: 7px solid #209094; position: relative;
+    }
+    .inner {
+      height: 100%; border: 2px solid #209094; padding: 22mm 18mm;
+      text-align: center; position: relative;
+    }
+    .hospital { font-size: 28px; font-weight: bold; color: #209094; }
+    .location { font-size: 14px; color: #555; margin-top: 5px; }
+    .title { margin-top: 42px; font-size: 27px; font-weight: bold; letter-spacing: 1px; color: #222; }
+    .subtitle { margin-top: 18px; font-size: 16px; color: #555; }
+    .patient {
+      margin-top: 20px; font-size: 28px; font-weight: bold; color: #209094;
+      display: inline-block; padding: 5px 30px; border-bottom: 2px solid #209094;
+    }
+    .text { margin-top: 22px; font-size: 16px; line-height: 1.7; color: #333; }
+    .details { width: 88%; margin: 28px auto; border-collapse: collapse; text-align: left; }
+    .details td { padding: 9px 10px; border-bottom: 1px solid #ddd; font-size: 14px; }
+    .details td:first-child { width: 43%; font-weight: bold; }
+    .paid {
+      display: inline-block; padding: 8px 22px; border: 2px solid #209094;
+      color: #209094; font-size: 17px; font-weight: bold; border-radius: 5px;
+    }
+    .signature { margin-top: 38px; text-align: right; font-weight: bold; font-size: 14px; }
+    .note { margin-top: 18px; font-size: 12px; color: #777; }
+    .bottom {
+      position: absolute; bottom: 10mm; left: 15mm; right: 15mm;
+      text-align: center; font-size: 11px; color: #777;
+    }
+  </style>
+</head>
+<body>
+  <div class="certificate">
+    <div class="inner">
+      <div class="hospital">ORCHID MEDICAL CENTRE</div>
+      <div class="location">Ranchi, Jharkhand</div>
+
+      <div class="title">CERTIFICATE OF APPOINTMENT &amp; PAYMENT</div>
+      <div class="subtitle">This is to certify that</div>
+
+      <div class="patient"><?= patientName ?></div>
+
+      <div class="text">
+        has successfully booked a medical consultation appointment with
+        <strong><?= doctor ?></strong> at Orchid Medical Centre, Ranchi.
+      </div>
+
+      <table class="details">
+        <tr><td>Patient Name</td><td><?= patientName ?></td></tr>
+        <tr><td>Doctor</td><td><?= doctor ?></td></tr>
+        <tr><td>Appointment Date</td><td><?= appointmentDate ?></td></tr>
+        <tr><td>Consultation Fee</td><td>₹<?= amount ?></td></tr>
+        <tr><td>Transaction ID</td><td><?= txnid ?></td></tr>
+        <tr><td>Certificate No.</td><td><?= certificateNo ?></td></tr>
+        <tr><td>Issue Date</td><td><?= issueDate ?></td></tr>
+      </table>
+
+      <div class="paid">PAYMENT SUCCESSFUL — PAID</div>
+
+      <div class="signature">
+        Authorized Signatory<br>
+        Orchid Medical Centre
+      </div>
+
+      <div class="note">This certificate is electronically generated against the successful payment.</div>
+    </div>
+
+    <div class="bottom">
+      Orchid Medical Centre, Ranchi, Jharkhand<br>
+      www.orchidmedcentre.com
+    </div>
+  </div>
+</body>
+</html>

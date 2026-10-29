@@ -1,0 +1,2778 @@
+/************************************************************
+ * ORCHID MEDICAL CENTRE
+ * GOOGLE APPS SCRIPT + PAYU TEST PAYMENT
+ *
+ * FLOW:
+ * Web App
+ *    ↓
+ * Appointment Form
+ *    ↓
+ * Submit & Pay
+ *    ↓
+ * Create PayU Transaction
+ *    ↓
+ * Save INITIATED in Google Sheet
+ *    ↓
+ * Redirect to PayU
+ *    ↓
+ * Payment
+ *    ↓
+ * PayU Callback
+ *    ↓
+ * Reverse Hash Validation
+ *    ↓
+ * PayU Verify Payment API
+ *    ↓
+ * Verify Amount
+ *    ↓
+ * Update Google Sheet
+ *    ↓
+ * Success / Failure
+ ************************************************************/
+
+
+// ==========================================================
+// 1. PAYU CONFIGURATION
+// ==========================================================
+
+// IMPORTANT:
+// Replace these with your PayU TEST credentials.
+//
+// Do NOT put the Salt in index.html.
+// Keep Salt private.
+
+const PAYU_KEY = "391rZr";
+
+const PAYU_SALT = "CWlID5hGRdvSwRozIfnWTWqDsB7cbaRt";
+
+
+// PayU TEST Payment URL
+const PAYU_URL = "https://test.payu.in/_payment";
+
+
+// PayU TEST Verify Payment API
+const PAYU_VERIFY_URL =
+  "https://test.payu.in/merchant/postservice.php?form=2";
+
+
+// ==========================================================
+// 2. GOOGLE SHEET CONFIGURATION
+// ==========================================================
+
+const SPREADSHEET_ID =
+  "1MIHD9x-R0t_g9rEvy3hxanET7O2cWWaovJKeFXYvHpc";
+
+const SHEET_NAME = "Appointments";
+
+const CERTIFICATE_FOLDER_ID = "1ohfnPDA7lYp09h3_NIeQnnycLSn5OmUb";
+
+// ==========================================================
+// 3. WEB APP
+// ==========================================================
+
+function doGet(e) {
+
+  return HtmlService
+    .createTemplateFromFile("index")
+    .evaluate()
+    .setTitle("Appointment Payment")
+    .setXFrameOptionsMode(
+      HtmlService.XFrameOptionsMode.ALLOWALL
+    );
+
+}
+
+
+// ==========================================================
+// 4. CREATE PAYMENT
+// ==========================================================
+
+function createPayment(data) {
+
+  try {
+
+    // ------------------------------------------------------
+    // GET FORM DATA
+    // ------------------------------------------------------
+
+    const patientName =
+      String(data.patientName || "").trim();
+
+    const email =
+      String(data.email || "").trim();
+
+    const phone =
+      String(data.phone || "").trim();
+
+    const doctor =
+      String(data.doctor || "").trim();
+
+    const appointmentDate =
+      String(data.appointmentDate || "").trim();
+
+    const consultationFee =
+      String(data.consultationFee || "").trim();
+
+
+    // ------------------------------------------------------
+    // VALIDATE PATIENT NAME
+    // ------------------------------------------------------
+
+    if (!patientName) {
+      throw new Error(
+        "Please enter patient name."
+      );
+    }
+
+
+    // ------------------------------------------------------
+    // VALIDATE EMAIL
+    // ------------------------------------------------------
+
+    if (!email) {
+      throw new Error(
+        "Please enter email address."
+      );
+    }
+
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      throw new Error(
+        "Please enter a valid email address."
+      );
+    }
+
+
+    // ------------------------------------------------------
+    // VALIDATE PHONE
+    // ------------------------------------------------------
+
+    if (!/^[0-9]{10}$/.test(phone)) {
+
+      throw new Error(
+        "Please enter a valid 10 digit contact number."
+      );
+
+    }
+
+
+    // ------------------------------------------------------
+    // VALIDATE DOCTOR
+    // ------------------------------------------------------
+
+    if (!doctor) {
+
+      throw new Error(
+        "Please enter doctor name."
+      );
+
+    }
+
+
+    // ------------------------------------------------------
+    // VALIDATE APPOINTMENT DATE
+    // ------------------------------------------------------
+
+    if (!appointmentDate) {
+
+      throw new Error(
+        "Please select appointment date."
+      );
+
+    }
+
+
+    // ------------------------------------------------------
+    // VALIDATE CONSULTATION FEE
+    // ------------------------------------------------------
+
+    if (!consultationFee) {
+
+      throw new Error(
+        "Please enter consultation fee."
+      );
+
+    }
+
+
+    // ------------------------------------------------------
+    // CONVERT AMOUNT
+    // ------------------------------------------------------
+
+    const amount =
+      parseFloat(
+        consultationFee.replace(
+          /[^0-9.]/g,
+          ""
+        )
+      );
+
+
+    if (
+      isNaN(amount) ||
+      amount <= 0
+    ) {
+
+      throw new Error(
+        "Please enter a valid consultation fee."
+      );
+
+    }
+
+
+    if (amount > 1000000) {
+
+      throw new Error(
+        "Consultation fee is too high."
+      );
+
+    }
+
+
+    // Always send amount with 2 decimals
+    const formattedAmount =
+      amount.toFixed(2);
+
+
+    // ======================================================
+    // GENERATE TRANSACTION ID
+    // ======================================================
+
+    const txnid =
+      "OMC" +
+      new Date().getTime() +
+      Math.floor(
+        Math.random() * 10000
+      );
+
+
+    // ======================================================
+    // PRODUCT INFORMATION
+    // ======================================================
+
+    const productinfo =
+      "Doctor Appointment";
+
+
+    // ======================================================
+    // UDF FIELDS
+    // ======================================================
+    //
+    // Keep UDF fields empty.
+    //
+    // Doctor and appointment date are stored
+    // directly in Google Sheet.
+    //
+    // ======================================================
+
+    const udf1 = "";
+    const udf2 = "";
+    const udf3 = "";
+    const udf4 = "";
+    const udf5 = "";
+
+
+    // ======================================================
+    // GET WEB APP URL
+    // ======================================================
+
+    const webAppUrl =
+      ScriptApp
+        .getService()
+        .getUrl();
+
+
+    if (!webAppUrl) {
+
+      throw new Error(
+        "Web App URL not found. Please deploy this project as a Web App."
+      );
+
+    }
+
+
+    // ======================================================
+    // PAYU REQUEST HASH
+    // ======================================================
+    //
+    // key|txnid|amount|productinfo|firstname|email|
+    // udf1|udf2|udf3|udf4|udf5||||||SALT
+    //
+    // ======================================================
+
+   const si_details = "";
+
+const hashString =
+  PAYU_KEY + "|" +
+  txnid + "|" +
+  formattedAmount + "|" +
+  productinfo + "|" +
+  patientName + "|" +
+  email + "|" +
+  udf1 + "|" +
+  udf2 + "|" +
+  udf3 + "|" +
+  udf4 + "|" +
+  udf5 +
+  "||||||" +
+  si_details +
+  "|" +
+  PAYU_SALT;
+
+
+    const hash =
+      sha512(hashString);
+
+
+    // ======================================================
+    // SAVE INITIATED PAYMENT
+    // ======================================================
+
+    saveAppointment({
+
+      txnid: txnid,
+
+      patientName: patientName,
+
+      email: email,
+
+      phone: phone,
+
+      doctor: doctor,
+
+      appointmentDate: appointmentDate,
+
+      amount: formattedAmount,
+
+      status: "INITIATED"
+
+    });
+
+
+    // ======================================================
+    // PAYU PARAMETERS
+    // ======================================================
+
+    const params = {
+
+      key: PAYU_KEY,
+
+      txnid: txnid,
+
+      amount: formattedAmount,
+
+      productinfo: productinfo,
+
+      firstname: patientName,
+
+      email: email,
+
+      phone: phone,
+
+      udf1: udf1,
+
+      udf2: udf2,
+
+      udf3: udf3,
+
+      udf4: udf4,
+
+      udf5: udf5,
+
+      si_details: "",
+
+      api_version: "7",
+
+      surl: webAppUrl,
+
+      furl: webAppUrl,
+
+      hash: hash
+
+    };
+
+
+    // ======================================================
+    // RETURN PAYU DATA TO INDEX.HTML
+    // ======================================================
+
+    return {
+
+      success: true,
+
+      payuUrl: PAYU_URL,
+
+      params: params
+
+    };
+
+
+  } catch (error) {
+
+    console.log(
+      "createPayment ERROR: " +
+      error.message
+    );
+
+    return {
+
+      success: false,
+
+      message: error.message
+
+    };
+
+  }
+
+}
+
+
+// ==========================================================
+// 5. SHA-512
+// ==========================================================
+
+function sha512(value) {
+
+  const digest =
+    Utilities.computeDigest(
+      Utilities.DigestAlgorithm.SHA_512,
+      value,
+      Utilities.Charset.UTF_8
+    );
+
+
+  return digest
+    .map(function(byte) {
+
+      const v =
+        byte < 0
+          ? byte + 256
+          : byte;
+
+      return (
+        "0" +
+        v.toString(16)
+      ).slice(-2);
+
+    })
+    .join("");
+
+}
+
+
+// ==========================================================
+// 6. SAVE APPOINTMENT
+// ==========================================================
+
+function saveAppointment(data) {
+
+  try {
+
+    const ss =
+      SpreadsheetApp.openById(
+        SPREADSHEET_ID
+      );
+
+
+    let sheet =
+      ss.getSheetByName(
+        SHEET_NAME
+      );
+
+
+    // Create sheet if it does not exist
+    if (!sheet) {
+
+      sheet =
+        ss.insertSheet(
+          SHEET_NAME
+        );
+
+    }
+
+
+    // ======================================================
+    // HEADERS
+    // ======================================================
+
+    const headers = [
+
+      "Date",
+
+      "Transaction ID",
+
+      "Patient Name",
+
+      "Email",
+
+      "Contact Number",
+
+      "Doctor",
+
+      "Appointment Date",
+
+      "Consultation Fee",
+
+      "Payment Status",
+
+      "PayU ID",
+
+      "Bank Reference",
+
+      "Certificate No.",
+
+      "Certificate File",
+
+      "Certificate Sent"
+
+    ];
+
+
+    if (
+      sheet.getLastRow() === 0
+    ) {
+
+      sheet
+        .getRange(
+          1,
+          1,
+          1,
+          headers.length
+        )
+        .setValues([
+          headers
+        ]);
+
+    }
+
+
+    // ======================================================
+    // SAVE
+    // ======================================================
+
+    sheet.appendRow([
+
+      new Date(),
+
+      data.txnid,
+
+      data.patientName,
+
+      data.email,
+
+      data.phone,
+
+      data.doctor,
+
+      data.appointmentDate,
+
+      data.amount,
+
+      data.status,
+
+      "",
+
+      ""
+
+    ]);
+
+
+  } catch (error) {
+
+    console.log(
+      "saveAppointment ERROR: " +
+      error.message
+    );
+
+  }
+
+}
+
+
+// ==========================================================
+// 7. PAYU CALLBACK
+// ==========================================================
+
+function doPost(e) {
+
+  try {
+
+    // ======================================================
+    // GET PAYU RESPONSE
+    // ======================================================
+
+    const p =
+      e && e.parameter
+        ? e.parameter
+        : {};
+
+
+    console.log(
+      "PayU callback received"
+    );
+
+
+    // ======================================================
+    // RAW VALUES
+    // ======================================================
+    //
+    // Do NOT trim values before reverse hash.
+    //
+    // ======================================================
+
+    const rawStatus =
+      p.status || "";
+
+    const rawTxnid =
+      p.txnid || "";
+
+    const rawHash =
+      p.hash || "";
+
+    const rawAmount =
+      p.amount || "";
+
+    const rawProductinfo =
+      p.productinfo || "";
+
+    const rawFirstname =
+      p.firstname || "";
+
+    const rawEmail =
+      p.email || "";
+
+    const rawUdf1 =
+      p.udf1 || "";
+
+    const rawUdf2 =
+      p.udf2 || "";
+
+    const rawUdf3 =
+      p.udf3 || "";
+
+    const rawUdf4 =
+      p.udf4 || "";
+
+    const rawUdf5 =
+      p.udf5 || "";
+
+    const rawKey =
+      p.key || "";
+
+
+    // ======================================================
+    // NORMAL VALUES
+    // ======================================================
+
+    const status =
+      String(rawStatus)
+        .toLowerCase()
+        .trim();
+
+    const txnid =
+      String(rawTxnid)
+        .trim();
+
+    const receivedHash =
+      String(rawHash)
+        .trim();
+
+    const mihpayid =
+      String(
+        p.mihpayid || ""
+      ).trim();
+
+    const amount =
+      String(rawAmount)
+        .trim();
+
+    const productinfo =
+      String(rawProductinfo)
+        .trim();
+
+    const firstname =
+      String(rawFirstname)
+        .trim();
+
+    const email =
+      String(rawEmail)
+        .trim();
+
+
+    // ======================================================
+    // ERROR INFORMATION
+    // ======================================================
+
+    const payuError =
+      String(
+        p.error || ""
+      ).trim();
+
+    const errorMessage =
+      String(
+        p.error_message ||
+        p.error_Message ||
+        ""
+      ).trim();
+
+    const unmappedStatus =
+      String(
+        p.unmappedstatus || ""
+      ).trim();
+
+    const bankRefNum =
+      String(
+        p.bank_ref_num || ""
+      ).trim();
+
+
+    // ======================================================
+    // ADDITIONAL CHARGES
+    // ======================================================
+
+    const additionalCharges =
+      String(
+        p.additional_charges ||
+        p.additionalCharges ||
+        ""
+      ).trim();
+
+
+    // ======================================================
+    // SPLIT INFO
+    // ======================================================
+
+    const splitInfo =
+      String(
+        p.splitInfo || ""
+      ).trim();
+
+
+    // ======================================================
+    // LOG
+    // ======================================================
+
+    console.log(
+      "PayU Status: " + status
+    );
+
+    console.log(
+      "Transaction ID: " + txnid
+    );
+
+    console.log(
+      "PayU Amount: " + amount
+    );
+
+    console.log(
+      "PayU Error: " + payuError
+    );
+
+    console.log(
+      "Unmapped Status: " +
+      unmappedStatus
+    );
+
+
+    // ======================================================
+    // REVERSE HASH
+    // ======================================================
+    //
+    // Regular:
+    //
+    // SALT|status||||||
+    // udf5|udf4|udf3|udf2|udf1|
+    // email|firstname|productinfo|amount|txnid|key
+    //
+    // ======================================================
+
+    let reverseHashString;
+
+
+    if (
+      additionalCharges &&
+      splitInfo
+    ) {
+
+      reverseHashString =
+        additionalCharges + "|" +
+        PAYU_SALT + "|" +
+        rawStatus + "|" +
+        splitInfo + "|" +
+        "||||||" +
+        rawUdf5 + "|" +
+        rawUdf4 + "|" +
+        rawUdf3 + "|" +
+        rawUdf2 + "|" +
+        rawUdf1 + "|" +
+        rawEmail + "|" +
+        rawFirstname + "|" +
+        rawProductinfo + "|" +
+        rawAmount + "|" +
+        rawTxnid + "|" +
+        rawKey;
+
+    }
+
+
+    else if (
+      additionalCharges
+    ) {
+
+      reverseHashString =
+        additionalCharges + "|" +
+        PAYU_SALT + "|" +
+        rawStatus + "|" +
+        "||||||" +
+        rawUdf5 + "|" +
+        rawUdf4 + "|" +
+        rawUdf3 + "|" +
+        rawUdf2 + "|" +
+        rawUdf1 + "|" +
+        rawEmail + "|" +
+        rawFirstname + "|" +
+        rawProductinfo + "|" +
+        rawAmount + "|" +
+        rawTxnid + "|" +
+        rawKey;
+
+    }
+
+
+    else if (
+      splitInfo
+    ) {
+
+      reverseHashString =
+        PAYU_SALT + "|" +
+        rawStatus + "|" +
+        splitInfo + "|" +
+        "||||||" +
+        rawUdf5 + "|" +
+        rawUdf4 + "|" +
+        rawUdf3 + "|" +
+        rawUdf2 + "|" +
+        rawUdf1 + "|" +
+        rawEmail + "|" +
+        rawFirstname + "|" +
+        rawProductinfo + "|" +
+        rawAmount + "|" +
+        rawTxnid + "|" +
+        rawKey;
+
+    }
+
+
+    else {
+
+      reverseHashString =
+        PAYU_SALT + "|" +
+        rawStatus + "|" +
+        "||||||" +
+        rawUdf5 + "|" +
+        rawUdf4 + "|" +
+        rawUdf3 + "|" +
+        rawUdf2 + "|" +
+        rawUdf1 + "|" +
+        rawEmail + "|" +
+        rawFirstname + "|" +
+        rawProductinfo + "|" +
+        rawAmount + "|" +
+        rawTxnid + "|" +
+        rawKey;
+
+    }
+
+
+    // ======================================================
+    // CALCULATE RESPONSE HASH
+    // ======================================================
+
+    const calculatedHash =
+      sha512(
+        reverseHashString
+      );
+
+
+    // ======================================================
+    // HASH VALIDATION
+    // ======================================================
+
+    const hashValid =
+      receivedHash !== "" &&
+      calculatedHash.toLowerCase() ===
+      receivedHash.toLowerCase();
+
+
+    console.log(
+      "Callback Hash Valid: " +
+      hashValid
+    );
+
+
+    // ======================================================
+    // CHECK STORED TRANSACTION
+    // ======================================================
+
+    const storedTransaction =
+      getStoredTransaction(
+        txnid
+      );
+
+
+    if (!storedTransaction) {
+
+      console.log(
+        "Transaction not found: " +
+        txnid
+      );
+
+      return HtmlService
+        .createHtmlOutput(
+          failurePage(
+
+            txnid,
+
+            status,
+
+            "TRANSACTION_NOT_FOUND",
+
+            "Transaction was not found in our records.",
+
+            unmappedStatus,
+
+            hashValid,
+
+            false,
+
+            bankRefNum,
+
+            "",
+
+            ""
+
+          )
+        );
+
+    }
+
+
+    // ======================================================
+    // CALLBACK AMOUNT VALIDATION
+    // ======================================================
+
+    const storedAmount =
+      parseFloat(
+        storedTransaction.amount
+      );
+
+    const responseAmount =
+      parseFloat(
+        amount
+      );
+
+
+    const amountValid =
+      !isNaN(storedAmount) &&
+      !isNaN(responseAmount) &&
+      storedAmount ===
+      responseAmount;
+
+
+    console.log(
+      "Callback Amount Valid: " +
+      amountValid
+    );
+
+
+    // ======================================================
+    // PAYU KEY VALIDATION
+    // ======================================================
+
+    const keyValid =
+      String(rawKey).trim() ===
+      String(PAYU_KEY).trim();
+
+
+    console.log(
+      "PayU Key Valid: " +
+      keyValid
+    );
+
+
+    // ======================================================
+    // PAYU SERVER-SIDE VERIFICATION
+    // ======================================================
+
+    let verifyResult = {
+
+      verified: false,
+
+      status: "",
+
+      amount: "",
+
+      mihpayid: "",
+
+      bankRefNum: "",
+
+      message:
+        "Verification not performed."
+
+    };
+
+
+    if (txnid) {
+
+      verifyResult =
+        verifyPaymentWithPayU(
+          txnid
+        );
+
+    }
+
+
+    console.log(
+      "PayU Verify Status: " +
+      verifyResult.status
+    );
+
+    console.log(
+      "PayU Verify Message: " +
+      verifyResult.message
+    );
+
+
+    // ======================================================
+    // VERIFY AMOUNT FROM PAYU API
+    // ======================================================
+
+    let verifyAmountValid =
+      false;
+
+
+    if (
+      verifyResult.amount !== ""
+    ) {
+
+      const verifyAmount =
+        parseFloat(
+          verifyResult.amount
+        );
+
+
+      verifyAmountValid =
+        !isNaN(verifyAmount) &&
+        !isNaN(storedAmount) &&
+        verifyAmount ===
+        storedAmount;
+
+    }
+
+
+    console.log(
+      "Verify API Amount Valid: " +
+      verifyAmountValid
+    );
+
+
+    // ======================================================
+    // FINAL PAYMENT STATUS
+    // ======================================================
+    //
+    // Successful payment requires:
+    //
+    // 1. PayU callback status = success
+    // 2. Merchant key matches
+    // 3. Callback amount matches
+    // 4. Callback reverse hash is valid
+    // 5. PayU Verify API = success
+    // 6. Verify API amount matches
+    //
+    // ======================================================
+
+   const finalSuccess =
+  status === "success" &&
+  keyValid &&
+  amountValid &&
+  verifyResult.verified &&
+  verifyAmountValid;
+
+
+if (finalSuccess) {
+
+      // ======================================================
+      // GENERATE AND SEND CERTIFICATE
+      // ======================================================
+      // Use the transaction stored in Google Sheet because the
+      // PayU callback may not contain all original form fields.
+
+      try {
+
+        // Prevent duplicate certificates if PayU retries callback.
+        const certificateAlreadySent =
+          isCertificateSent(txnid);
+
+        if (!certificateAlreadySent) {
+
+          const certificate = generateCertificate({
+
+            patientName: storedTransaction.patientName,
+
+            email: storedTransaction.email,
+
+            doctor: storedTransaction.doctor,
+
+            appointmentDate: storedTransaction.appointmentDate,
+
+            amount: storedTransaction.amount,
+
+            txnid: txnid
+
+          });
+
+
+          sendCertificateEmail(
+
+            {
+              patientName: storedTransaction.patientName,
+
+              email: storedTransaction.email,
+
+              doctor: storedTransaction.doctor,
+
+              appointmentDate: storedTransaction.appointmentDate,
+
+              amount: storedTransaction.amount,
+
+              txnid: txnid
+            },
+
+            certificate
+
+          );
+
+
+          updateCertificateDetails(
+
+            txnid,
+
+            certificate.certificateNo,
+
+            certificate.fileUrl
+
+          );
+
+        } else {
+
+          console.log(
+            "Certificate already sent for transaction: " + txnid
+          );
+
+        }
+
+      } catch (certificateError) {
+
+        // Do not change a verified payment to FAILED just because
+        // certificate generation/email had a separate problem.
+        console.log(
+          "CERTIFICATE ERROR: " +
+          certificateError.message
+        );
+
+      }
+
+    }
+
+    const finalStatus =
+      finalSuccess
+        ? "SUCCESS"
+        : "FAILED";
+
+
+    // ======================================================
+    // UPDATE GOOGLE SHEET
+    // ======================================================
+
+    updatePaymentStatus(
+
+      txnid,
+
+      finalStatus,
+
+      verifyResult.mihpayid ||
+      mihpayid,
+
+      verifyResult.bankRefNum ||
+      bankRefNum
+
+    );
+
+
+    // ======================================================
+    // SUCCESS
+    // ======================================================
+
+    if (finalSuccess) {
+
+      return HtmlService
+        .createHtmlOutput(
+
+          successPage(
+
+            txnid,
+
+            verifyResult.mihpayid ||
+            mihpayid,
+
+            amount
+
+          )
+
+        );
+
+    }
+
+
+    // ======================================================
+    // FAILURE
+    // ======================================================
+
+    return HtmlService
+      .createHtmlOutput(
+
+        failurePage(
+
+          txnid,
+
+          status,
+
+          payuError,
+
+          errorMessage,
+
+          unmappedStatus,
+
+          hashValid,
+
+          amountValid,
+
+          verifyResult.bankRefNum ||
+          bankRefNum,
+
+          verifyResult.status,
+
+          verifyResult.message
+
+        )
+
+      );
+
+
+  } catch (error) {
+
+    console.log(
+      "doPost ERROR: " +
+      error.message
+    );
+
+
+    return HtmlService
+      .createHtmlOutput(
+
+        failurePage(
+
+          "",
+
+          "",
+
+          "SCRIPT_ERROR",
+
+          error.message,
+
+          "",
+
+          false,
+
+          false,
+
+          "",
+
+          "",
+
+          ""
+
+        )
+
+      );
+
+  }
+
+}
+
+
+// ==========================================================
+// 8. PAYU VERIFY PAYMENT API
+// ==========================================================
+//
+// Hash:
+//
+// sha512(key|command|var1|salt)
+//
+// ==========================================================
+
+function verifyPaymentWithPayU(txnid) {
+
+  try {
+
+    if (!txnid) {
+
+      return {
+
+        verified: false,
+
+        status: "",
+
+        amount: "",
+
+        mihpayid: "",
+
+        bankRefNum: "",
+
+        message:
+          "Transaction ID is missing."
+
+      };
+
+    }
+
+
+    // ======================================================
+    // COMMAND
+    // ======================================================
+
+    const command =
+      "verify_payment";
+
+
+    // ======================================================
+    // VERIFY API HASH
+    // ======================================================
+
+    const verifyHashString =
+      PAYU_KEY +
+      "|" +
+      command +
+      "|" +
+      txnid +
+      "|" +
+      PAYU_SALT;
+
+
+    const verifyHash =
+      sha512(
+        verifyHashString
+      );
+
+
+    // ======================================================
+    // API REQUEST
+    // ======================================================
+
+    const payload = {
+
+      key: PAYU_KEY,
+
+      command: command,
+
+      var1: txnid,
+
+      hash: verifyHash
+
+    };
+
+
+    console.log(
+      "Calling PayU Verify API for: " +
+      txnid
+    );
+
+
+    const response =
+      UrlFetchApp.fetch(
+        PAYU_VERIFY_URL,
+        {
+
+          method: "post",
+
+          payload: payload,
+
+          muteHttpExceptions: true,
+
+          followRedirects: true
+
+        }
+      );
+
+
+    const responseCode =
+      response.getResponseCode();
+
+
+    const responseText =
+      response.getContentText();
+
+
+    console.log(
+      "PayU Verify HTTP Code: " +
+      responseCode
+    );
+
+    console.log(
+      "PayU Verify Response: " +
+      responseText
+    );
+
+
+    if (
+      !responseText
+    ) {
+
+      return {
+
+        verified: false,
+
+        status: "",
+
+        amount: "",
+
+        mihpayid: "",
+
+        bankRefNum: "",
+
+        message:
+          "Empty response from PayU Verify API."
+
+      };
+
+    }
+
+
+    // ======================================================
+    // PARSE JSON
+    // ======================================================
+
+    let result;
+
+
+    try {
+
+      result =
+        JSON.parse(
+          responseText
+        );
+
+    } catch (jsonError) {
+
+      return {
+
+        verified: false,
+
+        status: "",
+
+        amount: "",
+
+        mihpayid: "",
+
+        bankRefNum: "",
+
+        message:
+          "Invalid JSON response from PayU: " +
+          responseText.substring(
+            0,
+            500
+          )
+
+      };
+
+    }
+
+
+    // ======================================================
+    // CHECK TRANSACTION DETAILS
+    // ======================================================
+
+    if (
+      !result ||
+      !result.transaction_details
+    ) {
+
+      return {
+
+        verified: false,
+
+        status: "",
+
+        amount: "",
+
+        mihpayid: "",
+
+        bankRefNum: "",
+
+        message:
+          result &&
+          result.msg
+            ? result.msg
+            : "Transaction details not returned by PayU."
+
+      };
+
+    }
+
+
+    const transaction =
+      result.transaction_details[
+        txnid
+      ];
+
+
+    if (!transaction) {
+
+      return {
+
+        verified: false,
+
+        status: "",
+
+        amount: "",
+
+        mihpayid: "",
+
+        bankRefNum: "",
+
+        message:
+          "Transaction ID not found in PayU Verify response."
+
+      };
+
+    }
+
+
+    // ======================================================
+    // TRANSACTION VALUES
+    // ======================================================
+
+    const verifyStatus =
+      String(
+        transaction.status ||
+        ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    // IMPORTANT:
+    // PayU Verify API can return original amount
+    // in "amt".
+
+    const verifyAmount =
+      String(
+        transaction.amt ||
+        transaction.amount ||
+        transaction.transaction_amount ||
+        ""
+      ).trim();
+
+
+    const verifyMihpayid =
+      String(
+        transaction.mihpayupid ||
+        transaction.mihpayid ||
+        ""
+      ).trim();
+
+
+    const verifyBankRef =
+      String(
+        transaction.bank_ref_num ||
+        transaction.bank_ref_number ||
+        ""
+      ).trim();
+
+
+    const verified =
+      verifyStatus ===
+      "success";
+
+
+    return {
+
+      verified: verified,
+
+      status: verifyStatus,
+
+      amount: verifyAmount,
+
+      mihpayid: verifyMihpayid,
+
+      bankRefNum: verifyBankRef,
+
+      message:
+        result.msg ||
+        "Transaction verified."
+
+    };
+
+
+  } catch (error) {
+
+    console.log(
+      "verifyPaymentWithPayU ERROR: " +
+      error.message
+    );
+
+
+    return {
+
+      verified: false,
+
+      status: "",
+
+      amount: "",
+
+      mihpayid: "",
+
+      bankRefNum: "",
+
+      message:
+        error.message
+
+    };
+
+  }
+
+}
+
+
+// ==========================================================
+// 9. GET STORED TRANSACTION
+// ==========================================================
+
+function getStoredTransaction(txnid) {
+
+  try {
+
+    const ss =
+      SpreadsheetApp.openById(
+        SPREADSHEET_ID
+      );
+
+
+    const sheet =
+      ss.getSheetByName(
+        SHEET_NAME
+      );
+
+
+    if (!sheet) {
+
+      return null;
+
+    }
+
+
+    const data =
+      sheet
+        .getDataRange()
+        .getValues();
+
+
+    // ======================================================
+    // COLUMNS
+    //
+    // 0 Date
+    // 1 Transaction ID
+    // 2 Patient Name
+    // 3 Email
+    // 4 Contact Number
+    // 5 Doctor
+    // 6 Appointment Date
+    // 7 Consultation Fee
+    // 8 Payment Status
+    // 9 PayU ID
+    // 10 Bank Reference
+    // ======================================================
+
+
+    for (
+      let i = 1;
+      i < data.length;
+      i++
+    ) {
+
+      if (
+        String(data[i][1]) ===
+        String(txnid)
+      ) {
+
+        return {
+
+          row: i + 1,
+
+          txnid:
+            data[i][1],
+
+          patientName:
+            data[i][2],
+
+          email:
+            data[i][3],
+
+          phone:
+            data[i][4],
+
+          doctor:
+            data[i][5],
+
+          appointmentDate:
+            data[i][6],
+
+          amount:
+            data[i][7],
+
+          status:
+            data[i][8],
+
+          mihpayid:
+            data[i][9],
+
+          bankReference:
+            data[i][10]
+
+        };
+
+      }
+
+    }
+
+
+    return null;
+
+
+  } catch (error) {
+
+    console.log(
+      "getStoredTransaction ERROR: " +
+      error.message
+    );
+
+    return null;
+
+  }
+
+}
+
+
+// ==========================================================
+// 10. UPDATE PAYMENT STATUS
+// ==========================================================
+
+function updatePaymentStatus(
+
+  txnid,
+
+  status,
+
+  mihpayid,
+
+  bankRefNum
+
+) {
+
+  try {
+
+    const ss =
+      SpreadsheetApp.openById(
+        SPREADSHEET_ID
+      );
+
+
+    const sheet =
+      ss.getSheetByName(
+        SHEET_NAME
+      );
+
+
+    if (!sheet) {
+
+      return;
+
+    }
+
+
+    const data =
+      sheet
+        .getDataRange()
+        .getValues();
+
+
+    for (
+      let i = 1;
+      i < data.length;
+      i++
+    ) {
+
+      if (
+        String(data[i][1]) ===
+        String(txnid)
+      ) {
+
+        // Column 9
+        sheet
+          .getRange(
+            i + 1,
+            9
+          )
+          .setValue(
+            status
+          );
+
+
+        // Column 10
+        if (mihpayid) {
+
+          sheet
+            .getRange(
+              i + 1,
+              10
+            )
+            .setValue(
+              mihpayid
+            );
+
+        }
+
+
+        // Column 11
+        if (bankRefNum) {
+
+          sheet
+            .getRange(
+              i + 1,
+              11
+            )
+            .setValue(
+              bankRefNum
+            );
+
+        }
+
+
+        break;
+
+      }
+
+    }
+
+
+  } catch (error) {
+
+    console.log(
+      "updatePaymentStatus ERROR: " +
+      error.message
+    );
+
+  }
+
+}
+
+
+// ==========================================================
+// 11. UPDATE CERTIFICATE DETAILS
+// ==========================================================
+
+function updateCertificateDetails(txnid, certificateNo, fileUrl) {
+
+  try {
+
+    const sheet = SpreadsheetApp
+      .openById(SPREADSHEET_ID)
+      .getSheetByName(SHEET_NAME);
+
+    if (!sheet) {
+      throw new Error("Appointments sheet not found.");
+    }
+
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+
+      // Column B = Transaction ID
+      if (String(data[i][1]).trim() === String(txnid).trim()) {
+
+        // Column L = Certificate No.
+        sheet.getRange(i + 1, 12).setValue(certificateNo);
+
+        // Column M = Certificate File
+        sheet.getRange(i + 1, 13).setValue(fileUrl);
+
+        // Column N = Certificate Sent
+        sheet.getRange(i + 1, 14).setValue("YES");
+
+        console.log(
+          "Certificate details updated for: " + txnid
+        );
+
+        return true;
+      }
+    }
+
+    console.log(
+      "Certificate update: transaction not found: " + txnid
+    );
+
+    return false;
+
+  } catch (error) {
+
+    console.log(
+      "updateCertificateDetails ERROR: " + error.message
+    );
+
+    throw error;
+  }
+}
+
+
+// ==========================================================
+// CHECK WHETHER CERTIFICATE WAS ALREADY SENT
+// ==========================================================
+
+function isCertificateSent(txnid) {
+
+  try {
+
+    const sheet = SpreadsheetApp
+      .openById(SPREADSHEET_ID)
+      .getSheetByName(SHEET_NAME);
+
+    if (!sheet) {
+      return false;
+    }
+
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+
+      // Column B = Transaction ID
+      if (String(data[i][1]).trim() === String(txnid).trim()) {
+
+        // Column N = Certificate Sent
+        return String(data[i][13] || "").trim().toUpperCase() === "YES";
+      }
+    }
+
+    return false;
+
+  } catch (error) {
+
+    console.log(
+      "isCertificateSent ERROR: " + error.message
+    );
+
+    return false;
+  }
+}
+
+
+// ==========================================================
+// 11. SUCCESS PAGE
+// ==========================================================
+
+function successPage(
+
+  txnid,
+
+  mihpayid,
+
+  amount
+
+) {
+
+  return `
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>Payment Successful</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+
+  margin: 0;
+
+  font-family: Arial, sans-serif;
+
+  background: #f4f8f8;
+
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  min-height: 100vh;
+
+  padding: 20px;
+
+}
+
+.box {
+
+  background: white;
+
+  width: 100%;
+
+  max-width: 520px;
+
+  padding: 40px;
+
+  text-align: center;
+
+  border-radius: 15px;
+
+  box-shadow:
+    0 10px 30px
+    rgba(0,0,0,.10);
+
+}
+
+.icon {
+
+  width: 70px;
+
+  height: 70px;
+
+  line-height: 70px;
+
+  margin: 0 auto 20px;
+
+  border-radius: 50%;
+
+  background: #209094;
+
+  color: white;
+
+  font-size: 42px;
+
+}
+
+h1 {
+
+  color: #209094;
+
+}
+
+.txn {
+
+  background: #f5f5f5;
+
+  padding: 18px;
+
+  margin-top: 25px;
+
+  border-radius: 8px;
+
+  text-align: left;
+
+  word-break: break-word;
+
+}
+
+.row {
+
+  margin-bottom: 15px;
+
+}
+
+.row:last-child {
+
+  margin-bottom: 0;
+
+}
+
+.label {
+
+  font-weight: bold;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="box">
+
+  <div class="icon">
+    ✓
+  </div>
+
+  <h1>
+    Payment Successful
+  </h1>
+
+  <p>
+    Your appointment payment has been received successfully.
+  </p>
+
+  <div class="txn">
+
+    <div class="row">
+
+      <span class="label">
+        Transaction ID
+      </span>
+
+      <br>
+
+      ${escapeHtml(txnid)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        PayU ID
+      </span>
+
+      <br>
+
+      ${escapeHtml(mihpayid)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        Amount
+      </span>
+
+      <br>
+
+      ₹${escapeHtml(amount)}
+
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+
+</html>
+
+`;
+
+}
+
+
+// ==========================================================
+// 12. FAILURE PAGE
+// ==========================================================
+
+function failurePage(
+
+  txnid,
+
+  status,
+
+  error,
+
+  errorMessage,
+
+  unmappedStatus,
+
+  hashValid,
+
+  amountValid,
+
+  bankRefNum,
+
+  verifyStatus,
+
+  verifyMessage
+
+) {
+
+  return `
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1">
+
+<title>Payment Failed</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+
+  margin: 0;
+
+  font-family: Arial, sans-serif;
+
+  background: #f8f5f5;
+
+  display: flex;
+
+  justify-content: center;
+
+  align-items: center;
+
+  min-height: 100vh;
+
+  padding: 20px;
+
+}
+
+.box {
+
+  background: white;
+
+  width: 100%;
+
+  max-width: 600px;
+
+  padding: 40px;
+
+  text-align: center;
+
+  border-radius: 15px;
+
+  box-shadow:
+    0 10px 30px
+    rgba(0,0,0,.10);
+
+}
+
+.icon {
+
+  width: 70px;
+
+  height: 70px;
+
+  line-height: 70px;
+
+  margin: 0 auto 20px;
+
+  border-radius: 50%;
+
+  background: #d9534f;
+
+  color: white;
+
+  font-size: 42px;
+
+}
+
+h1 {
+
+  color: #d9534f;
+
+}
+
+.info {
+
+  margin-top: 25px;
+
+  padding: 18px;
+
+  background: #f5f5f5;
+
+  border-radius: 8px;
+
+  text-align: left;
+
+  word-break: break-word;
+
+}
+
+.row {
+
+  margin-bottom: 15px;
+
+}
+
+.label {
+
+  font-weight: bold;
+
+}
+
+.retry {
+
+  display: inline-block;
+
+  margin-top: 25px;
+
+  padding: 12px 22px;
+
+  background: #209094;
+
+  color: white;
+
+  text-decoration: none;
+
+  border-radius: 6px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="box">
+
+  <div class="icon">
+    ✕
+  </div>
+
+  <h1>
+    Payment Failed
+  </h1>
+
+  <p>
+    We could not confirm your payment.
+  </p>
+
+  <div class="info">
+
+    <div class="row">
+
+      <span class="label">
+        Transaction ID:
+      </span>
+
+      <br>
+
+      ${escapeHtml(txnid)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        PayU Status:
+      </span>
+
+      <br>
+
+      ${escapeHtml(status)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        PayU Error:
+      </span>
+
+      <br>
+
+      ${escapeHtml(error)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        Error Message:
+      </span>
+
+      <br>
+
+      ${escapeHtml(errorMessage)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        Unmapped Status:
+      </span>
+
+      <br>
+
+      ${escapeHtml(unmappedStatus)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        Bank Reference:
+      </span>
+
+      <br>
+
+      ${escapeHtml(bankRefNum)}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        Callback Hash Valid:
+      </span>
+
+      <br>
+
+      ${escapeHtml(
+        String(hashValid)
+      )}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        Callback Amount Valid:
+      </span>
+
+      <br>
+
+      ${escapeHtml(
+        String(amountValid)
+      )}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        PayU Verify Status:
+      </span>
+
+      <br>
+
+      ${escapeHtml(
+        verifyStatus
+      )}
+
+    </div>
+
+
+    <div class="row">
+
+      <span class="label">
+        PayU Verify Message:
+      </span>
+
+      <br>
+
+      ${escapeHtml(
+        verifyMessage
+      )}
+
+    </div>
+
+  </div>
+
+
+  <a
+    href="javascript:history.back()"
+    class="retry">
+
+    Try Again
+
+  </a>
+
+</div>
+
+</body>
+
+</html>
+
+`;
+
+}
+
+
+// ==========================================================
+// 13. HTML ESCAPE
+// ==========================================================
+
+function escapeHtml(value) {
+
+  return String(
+    value || ""
+  )
+
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+
+    .replace(
+      /</g,
+      "&lt;"
+    )
+
+    .replace(
+      />/g,
+      "&gt;"
+    )
+
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+
+    .replace(
+      /'/g,
+      "&#039;"
+    );
+
+}
+
+
+// ==========================================================
+// 14. AUTHORIZE PAYU
+// ==========================================================
+//
+// RUN THIS FUNCTION MANUALLY ONCE.
+//
+// This forces Google Apps Script to request the
+// UrlFetchApp external_request permission.
+//
+// ==========================================================
+
+function authorizePayU() {
+
+  const response =
+    UrlFetchApp.fetch(
+      "https://test.payu.in",
+      {
+        method: "get",
+        muteHttpExceptions: true
+      }
+    );
+
+
+  Logger.log(
+    "PayU authorization test HTTP code: " +
+    response.getResponseCode()
+  );
+
+  Logger.log(
+    "PayU authorization successful."
+  );
+
+}
+// ==========================================================
+// 15. Certificate
+// ==========================================================
+function generateCertificate(data) {
+
+  const folder = DriveApp.getFolderById(CERTIFICATE_FOLDER_ID);
+
+  const certificateNo =
+    "OMC-CERT-" +
+    Utilities.formatDate(
+      new Date(),
+      "Asia/Kolkata",
+      "yyyyMMddHHmmss"
+    );
+
+  const issueDate = Utilities.formatDate(
+    new Date(),
+    "Asia/Kolkata",
+    "dd-MM-yyyy"
+  );
+
+  const template = HtmlService.createTemplateFromFile(
+    "Certificate"
+  );
+
+  template.patientName = data.patientName;
+  template.doctor = data.doctor;
+  template.appointmentDate = data.appointmentDate;
+  template.amount = data.amount;
+  template.txnid = data.txnid;
+  template.certificateNo = certificateNo;
+  template.issueDate = issueDate;
+
+  const html = template.evaluate().getContent();
+
+  const pdfBlob = Utilities
+    .newBlob(html, "text/html", certificateNo + ".html")
+    .getAs("application/pdf")
+    .setName(
+      certificateNo +
+      "_" +
+      data.patientName +
+      ".pdf"
+    );
+
+  const file = folder.createFile(pdfBlob);
+
+  return {
+    certificateNo: certificateNo,
+    fileId: file.getId(),
+    fileUrl: file.getUrl(),
+    blob: pdfBlob
+  };
+}
+// ==========================================================
+// 16. Email certificate to patient
+// ==========================================================
+function sendCertificateEmail(data, certificate) {
+
+  const subject =
+    "Appointment Confirmation & Certificate - Orchid Medical Centre";
+
+  const body =
+    "Dear " + data.patientName + ",\n\n" +
+
+    "Your consultation appointment has been successfully booked " +
+    "with Orchid Medical Centre.\n\n" +
+
+    "Doctor: " + data.doctor + "\n" +
+    "Appointment Date: " + data.appointmentDate + "\n" +
+    "Consultation Fee: ₹" + data.amount + "\n" +
+    "Transaction ID: " + data.txnid + "\n" +
+    "Certificate No.: " + certificate.certificateNo + "\n\n" +
+
+    "Please find your appointment certificate attached with this email.\n\n" +
+
+    "Regards,\n" +
+    "Orchid Medical Centre\n" +
+    "Ranchi, Jharkhand\n" +
+    "www.orchidmedcentre.com";
+
+  MailApp.sendEmail({
+    to: data.email,
+    subject: subject,
+    body: body,
+    attachments: [certificate.blob],
+    name: "Orchid Medical Centre"
+  });
+}
+
+// ==========================================================
+// CERTIFICATE TEST
+// ==========================================================
+// Run this manually once to test PDF generation and email.
+// Change TEST_EMAIL before running.
+// ==========================================================
+
+function testCertificate() {
+
+  const TEST_EMAIL = "erabhishekvishwkarma@gmail.com";
+
+  const certificate = generateCertificate({
+
+    patientName: "Test Patient",
+
+    email: TEST_EMAIL,
+
+    doctor: "Dr. Test Doctor",
+
+    appointmentDate: "10-09-2026",
+
+    amount: "800.00",
+
+    txnid: "TEST-" + new Date().getTime()
+
+  });
+
+  sendCertificateEmail(
+
+    {
+      patientName: "Test Patient",
+      email: TEST_EMAIL,
+      doctor: "Dr. Test Doctor",
+      appointmentDate: "10-09-2026",
+      amount: "800.00",
+      txnid: certificate.certificateNo
+    },
+
+    certificate
+
+  );
+
+  console.log(
+    "TEST CERTIFICATE URL: " +
+    certificate.fileUrl
+  );
+
+}
+function authorizeCertificateServices() {
+
+  // Test Spreadsheet
+  const sheet = SpreadsheetApp
+    .openById(SPREADSHEET_ID)
+    .getSheetByName(SHEET_NAME);
+
+  console.log(
+    "Spreadsheet access: " +
+    (sheet ? "OK" : "FAILED")
+  );
+
+
+  // Test Drive
+  const folder = DriveApp
+    .getFolderById(CERTIFICATE_FOLDER_ID);
+
+  console.log(
+    "Drive folder access: " +
+    folder.getName()
+  );
+
+
+  // Test Email
+  MailApp.getRemainingDailyQuota();
+
+  console.log(
+    "Mail permission: OK"
+  );
+
+
+  console.log(
+    "All certificate services authorized."
+  );
+}
